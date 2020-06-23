@@ -1,18 +1,8 @@
 package life.qbic.portal.portlet;
 
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import ch.ethz.sis.openbis.generic.asapi.v3.dto.experiment.Experiment;
+import ch.ethz.sis.openbis.generic.asapi.v3.dto.project.Project;
+
 import com.liferay.portal.model.User;
 import com.liferay.portal.model.UserGroup;
 import com.vaadin.annotations.Theme;
@@ -21,20 +11,14 @@ import com.vaadin.data.Property.ValueChangeEvent;
 import com.vaadin.data.Property.ValueChangeListener;
 import com.vaadin.server.VaadinRequest;
 import com.vaadin.shared.ui.label.ContentMode;
-import com.vaadin.ui.Button;
-import com.vaadin.ui.Label;
-import com.vaadin.ui.Layout;
-import com.vaadin.ui.TabSheet;
-import com.vaadin.ui.VerticalLayout;
+import com.vaadin.ui.*;
 import com.vaadin.ui.Button.ClickEvent;
 import com.vaadin.ui.Button.ClickListener;
-import ch.systemsx.cisd.openbis.generic.shared.api.v1.dto.Experiment;
-import ch.systemsx.cisd.openbis.generic.shared.api.v1.dto.Project;
+
 import life.qbic.datamodel.persons.Affiliation;
 import life.qbic.datamodel.persons.CollaboratorWithResponsibility;
 import life.qbic.datamodel.persons.Person;
 import life.qbic.datamodel.projects.ProjectInfo;
-import life.qbic.openbis.openbisclient.IOpenBisClient;
 import life.qbic.openbis.openbisclient.OpenBisClient;
 import life.qbic.portal.Styles;
 import life.qbic.portal.Styles.NotificationType;
@@ -43,13 +27,16 @@ import life.qbic.portal.utils.ConfigurationManagerFactory;
 import life.qbic.portal.utils.PortalUtils;
 import life.qbic.userdb.Config;
 import life.qbic.userdb.DBManager;
-import life.qbic.userdb.views.AffiliationInput;
-import life.qbic.userdb.views.AffiliationVIPTab;
-import life.qbic.userdb.views.MultiAffiliationTab;
-import life.qbic.userdb.views.PersonBatchUpload;
-import life.qbic.userdb.views.PersonInput;
-import life.qbic.userdb.views.ProjectView;
-import life.qbic.userdb.views.SearchView;
+import life.qbic.userdb.views.*;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import java.sql.SQLException;
+import java.util.*;
 
 /**
  * Entry point for portlet user-db-portlet. This class derives from {@link QBiCPortletUI}, which is
@@ -72,7 +59,7 @@ public class UserDBPortletUI extends QBiCPortletUI {
   private Config config;
   public static String tmpFolder;
 
-  private IOpenBisClient openbis;
+  private OpenBisClient openbis;
   private final boolean development = false;
 
   @Override
@@ -90,46 +77,51 @@ public class UserDBPortletUI extends QBiCPortletUI {
 
     if (PortalUtils.isLiferayPortlet()) {
       // read in the configuration file
-
       logger.info("User DB portlet is running on Liferay and user is logged in.");
       userID = PortalUtils.getUser().getScreenName();
+
     } else {
       if (development) {
         logger.warn("Checks for local dev version successful. User is granted admin status.");
         userID = "admin";
         // isAdmin = true;
+
       } else {
         success = false;
         logger.info(
-            "User \"" + userID + "\" not found. Probably running on Liferay and not logged in.");
+                "User \"" + userID + "\" not found. Probably running on Liferay and not logged in.");
         layout.addComponent(new Label("User not found. Are you logged in?"));
       }
     }
+
     // establish connection to the OpenBIS API
     try {
       logger.debug("trying to connect to openbis");
 
-      this.openbis = new OpenBisClient(manager.getDataSourceUser(), manager.getDataSourcePassword(),
-          manager.getDataSourceUrl());
+      this.openbis = new OpenBisClient(manager.getDataSourceUser(),
+              manager.getDataSourcePassword(), manager.getDataSourceUrl());
       this.openbis.login();
+
     } catch (Exception e) {
       success = false;
       logger.error(
-          "User \"" + userID + "\" could not connect to openBIS and has been informed of this.");
-      layout.addComponent(new Label(
-          "Data Management System could not be reached. Please try again later or contact us."));
-    }
-    if (success) {
-      config = new Config(manager.getMysqlHost(), manager.getMysqlPort(), manager.getMysqlDB(),
-          manager.getMysqlUser(), manager.getMysqlPass(), manager.getUserDBInputUserGrps(),
-          manager.getUserDBInputAdminGrps(), manager.getDataSourceUrl(),
-          manager.getDataSourceUser(), manager.getDataSourcePassword(), manager.getTmpFolder());
+              "User \"" + userID + "\" could not connect to openBIS and has been informed of this.");
+      layout.addComponent(
+              new Label("Data Management System could not be reached. " +
+                      "Please try again later or contact us."));
     }
 
-    // LDAPConfig ldapConfig = readLdapConfig();// TODO
+    if (success) {
+      config = new Config(
+              manager.getMysqlHost(), manager.getMysqlPort(), manager.getMysqlDB(),
+              manager.getMysqlUser(), manager.getMysqlPass(), manager.getUserDBInputUserGrps(),
+              manager.getUserDBInputAdminGrps(), manager.getDataSourceUrl(),
+              manager.getDataSourceUser(), manager.getDataSourcePassword(), manager.getTmpFolder());
+    }
+
+    // LDAPConfig ldapConfig = readLdapConfig();  // ToDo
 
     dbControl = new DBManager(config);
-
     initTabs();
 
     layout.addComponent(options);
@@ -139,13 +131,14 @@ public class UserDBPortletUI extends QBiCPortletUI {
   private void initTabs() {
     boolean admin = isAdmin();
     options.removeAllComponents();
+
     if (!admin && !development && !canUsePortlet()) {
       VerticalLayout rightsMissingTab = new VerticalLayout();
       rightsMissingTab.setCaption("User Database Input");
       Label info = new Label(
-          "Your account does not have the necessary rights to add new people to our database.\n"
-              + "If you think you should be able to do so, please contact us.",
-          ContentMode.PREFORMATTED);
+              "Your account does not have the necessary rights to add new people to our database.\n"
+                      + "If you think you should be able to do so, please contact us.",
+              ContentMode.PREFORMATTED);
       rightsMissingTab.addComponent(info);
       options.addTab(rightsMissingTab, "Information");
       options.setSelectedTab(rightsMissingTab);
@@ -155,20 +148,22 @@ public class UserDBPortletUI extends QBiCPortletUI {
       personMap = dbControl.getPersonMap();
       Map<String, Integer> colNamesToMaxLength = fillMaxInputLengthMap();
 
-      Set<String> instituteNames = dbControl.getInstituteNames();
+      Set<String> instituteNames =
+              dbControl.getInstituteNames();
       List<String> facultyEnums =
-          dbControl.getPossibleEnumsForColumnsInTable("organizations", "faculty");
+              dbControl.getPossibleEnumsForColumnsInTable("organizations", "faculty");
       List<String> affiliationRoles =
-          dbControl.getPossibleEnumsForColumnsInTable("persons_organizations", "occupation");
-      List<String> titleEnums = dbControl.getPossibleEnumsForColumnsInTable("persons", "title");
+              dbControl.getPossibleEnumsForColumnsInTable("persons_organizations", "occupation");
+      List<String> titleEnums =
+              dbControl.getPossibleEnumsForColumnsInTable("persons", "title");
 
       PersonInput addUserTab =
-          new PersonInput(titleEnums, affiMap, affiliationRoles, colNamesToMaxLength,
-              new AffiliationInput(instituteNames, facultyEnums, personMap, colNamesToMaxLength));
+              new PersonInput(titleEnums, affiMap, affiliationRoles, colNamesToMaxLength,
+                      new AffiliationInput(instituteNames, facultyEnums, personMap, colNamesToMaxLength));
       options.addTab(addUserTab, "New Person");
 
       AffiliationInput addAffilTab =
-          new AffiliationInput(instituteNames, facultyEnums, personMap, colNamesToMaxLength);
+              new AffiliationInput(instituteNames, facultyEnums, personMap, colNamesToMaxLength);
       options.addTab(addAffilTab, "New Affiliation");
 
 
@@ -176,11 +171,11 @@ public class UserDBPortletUI extends QBiCPortletUI {
       options.addTab(searchView, "Search Entries");
 
       List<Affiliation> affiTable = dbControl.getAffiliationTable();
-      Map<Integer, Pair<String, String>> affiPeople = new HashMap<Integer, Pair<String, String>>();
+      Map<Integer, Pair<String, String>> affiPeople = new HashMap<>();
       for (Affiliation a : affiTable) {
         int id = a.getID();
         affiPeople.put(id,
-            new ImmutablePair<String, String>(a.getContactPerson(), a.getHeadName()));
+                new ImmutablePair<>(a.getContactPerson(), a.getHeadName()));
       }
 
       PersonBatchUpload batchTab = new PersonBatchUpload(titleEnums, affiliationRoles, affiMap);
@@ -190,15 +185,12 @@ public class UserDBPortletUI extends QBiCPortletUI {
       options.addTab(vipTab, "Edit Affiliation VIPs");
 
       MultiAffiliationTab multiAffilTab =
-          new MultiAffiliationTab(personMap, affiMap, affiliationRoles);
+              new MultiAffiliationTab(personMap, affiMap, affiliationRoles);
       options.addTab(multiAffilTab, "Additional Person-Affiliations");
 
       if (!admin) {
         options.getTab(multiAffilTab).setEnabled(false);
         options.getTab(vipTab).setEnabled(false);
-
-        // options.getTab(3).setEnabled(false);
-        // options.getTab(4).setEnabled(false);
       }
 
       String userID = "";
@@ -211,21 +203,19 @@ public class UserDBPortletUI extends QBiCPortletUI {
           userID = "admin";
         }
       }
-      Map<String, ProjectInfo> userProjects = new HashMap<String, ProjectInfo>();
+      Map<String, ProjectInfo> userProjects = new HashMap<>();
 
-      List<Project> openbisProjects = new ArrayList<Project>();
-
-      openbisProjects = openbis.getOpenbisInfoService()
-          .listProjectsOnBehalfOfUser(openbis.getSessionToken(), userID);
+      List<Project> openbisProjects = openbis.listProjectsForUser(userID);
 
       Map<String, ProjectInfo> dbProjects = dbControl.getProjectMap();
       for (Project p : openbisProjects) {
         String desc = Objects.toString(p.getDescription(), "");
         desc = desc.replaceAll("\n+", ". ");
-        String projectID = p.getIdentifier();
+        String projectID = p.getIdentifier().toString();
         String code = p.getCode();
+
         if (dbProjects.get(projectID) == null)
-          userProjects.put(projectID, new ProjectInfo(p.getSpaceCode(), code, desc, "", -1));
+          userProjects.put(projectID, new ProjectInfo(p.getSpace().getCode(), code, desc, "", -1));
         else {
           ProjectInfo info = dbProjects.get(projectID);
           info.setDescription(desc);
@@ -243,15 +233,17 @@ public class UserDBPortletUI extends QBiCPortletUI {
       options.getTab(projectView).setEnabled(!userProjects.isEmpty());
 
       initPortletToDBFunctionality(addAffilTab, addUserTab, batchTab, multiAffilTab, vipTab,
-          searchView, projectView);
+              searchView, projectView);
     }
   }
 
   private Map<String, Integer> fillMaxInputLengthMap() {
     Map<String, Integer> res = new HashMap<>();
+
     try {
       res.putAll(dbControl.getColsMaxLengthsForTable("persons"));
       res.putAll(dbControl.getColsMaxLengthsForTable("organizations"));
+
     } catch (SQLException e) {
       // TODO Auto-generated catch block
       e.printStackTrace();
@@ -262,11 +254,13 @@ public class UserDBPortletUI extends QBiCPortletUI {
   private boolean canUsePortlet() {
     try {
       User user = PortalUtils.getUser();
+
       for (UserGroup grp : user.getUserGroups()) {
         String group = grp.getName();
+
         if (config.getUserGrps().contains(group)) {
-          logger.info("User " + user.getScreenName() + " can use portlet because they are part of "
-              + group);
+          logger.info("User " + user.getScreenName() +
+                  " can use portlet because they are part of " + group);
           return true;
         }
       }
@@ -280,14 +274,17 @@ public class UserDBPortletUI extends QBiCPortletUI {
   private boolean isAdmin() {
     if (development)
       return true;
+
     else {
       try {
         User user = PortalUtils.getUser();
+
         for (UserGroup grp : user.getUserGroups()) {
           String group = grp.getName();
+
           if (config.getAdminGrps().contains(group)) {
-            logger.info("User " + user.getScreenName()
-                + " has full rights because they are part of " + group);
+            logger.info("User " + user.getScreenName() +
+                    " has full rights because they are part of " + group);
             return true;
           }
         }
@@ -300,25 +297,22 @@ public class UserDBPortletUI extends QBiCPortletUI {
   }
 
   private void initPortletToDBFunctionality(final AffiliationInput addAffilTab,
-      final PersonInput addUserTab, final PersonBatchUpload batchUpload,
-      final MultiAffiliationTab multiAffilTab, final AffiliationVIPTab vipTab,
-      final SearchView search, final ProjectView projects) {
+                                            final PersonInput addUserTab,
+                                            final PersonBatchUpload batchUpload,
+                                            final MultiAffiliationTab multiAffilTab,
+                                            final AffiliationVIPTab vipTab,
+                                            final SearchView search,
+                                            final ProjectView projects) {
 
     batchUpload.getRegisterButton().addClickListener(new Button.ClickListener() {
-      /**
-       * 
-       */
       private static final long serialVersionUID = 1L;
-
-      /**
-       * 
-       */
 
       @Override
       public void buttonClick(ClickEvent event) {
         if (batchUpload.isValid()) {
-          List<String> registered = new ArrayList<String>();
+          List<String> registered = new ArrayList<>();
           batchUpload.setRegEnabled(false);
+
           for (Person p : batchUpload.getPeople()) {
             if (dbControl.personExists(p)) {
               registered.add(p.getFirstName() + " " + p.getLastName());
@@ -328,12 +322,16 @@ public class UserDBPortletUI extends QBiCPortletUI {
               }
             }
           }
-          if (registered.isEmpty())
+
+          if (registered.isEmpty()) {
             successfulCommit();
-          else {
-            Styles.notification("Person already registered", StringUtils.join(registered, ", ")
-                + " had a username or email already registered in our database! They were skipped in the registration process.",
-                NotificationType.DEFAULT);
+
+          } else {
+            Styles.notification("Person already registered",
+                    StringUtils.join(registered, ", ") +
+                            " had a username or email already registered in our database!" +
+                            " They were skipped in the registration process.",
+                    NotificationType.DEFAULT);
           }
         }
       }
@@ -354,16 +352,18 @@ public class UserDBPortletUI extends QBiCPortletUI {
       @Override
       public void valueChange(ValueChangeEvent event) {
         Object item = projects.getProjectTable().getValue();
+
         if (item != null) {
           String project = item.toString();
           // get collaborators associated to openbis experiments
-          List<CollaboratorWithResponsibility> collaborators =
-              dbControl.getCollaboratorsOfProject(project);
+          List<CollaboratorWithResponsibility> collaborators = dbControl.getCollaboratorsOfProject(project);
           // get openbis experiments and type
-          Map<String, String> existingExps = new HashMap<String, String>();
-          for (Experiment e : openbis.getExperimentsForProject2(project)) {
-            String type = expTypeCodeTranslation.get(e.getExperimentTypeCode());
-            String id = e.getIdentifier();
+          Map<String, String> existingExps = new HashMap<>();
+
+          for (Experiment e : openbis.getExperimentsForProject(project)) {
+            String type = expTypeCodeTranslation.get(e.getType().getCode());
+            String id = e.getIdentifier().toString();
+
             if (type != null)
               existingExps.put(id, type);
           }
@@ -377,7 +377,7 @@ public class UserDBPortletUI extends QBiCPortletUI {
           for (String expID : existingExps.keySet()) {
             String code = expID.split("/")[3];
             CollaboratorWithResponsibility c =
-                new CollaboratorWithResponsibility(-1, "", expID, code, "Contact");
+                    new CollaboratorWithResponsibility(-1, "", expID, code, "Contact");
             c.setType(existingExps.get(expID));
             collaborators.add(c);
           }
@@ -411,7 +411,7 @@ public class UserDBPortletUI extends QBiCPortletUI {
           int id = info.getProjectID();
           if (id < 1)
             id = dbControl.addProjectToDB("/" + info.getSpace() + "/" + code,
-                info.getSecondaryName());
+                    info.getSecondaryName());
           else
             dbControl.addOrChangeSecondaryNameForProject(id, info.getSecondaryName());
           if (info.getInvestigator() == null || info.getInvestigator().isEmpty())
@@ -536,8 +536,8 @@ public class UserDBPortletUI extends QBiCPortletUI {
           }
           if (dbControl.personExists(p)) {
             Styles.notification("Person already registered",
-                "A person with the Username or E-Mail you selected is already registered in our database!",
-                NotificationType.ERROR);
+                    "A person with the Username or E-Mail you selected is already registered in our database!",
+                    NotificationType.ERROR);
           } else {
             if (dbControl.addNewPerson(p))
               successfulCommit();
@@ -555,8 +555,8 @@ public class UserDBPortletUI extends QBiCPortletUI {
       public void buttonClick(ClickEvent event) {
         if (multiAffilTab.isValid()) {
           if (dbControl.addOrUpdatePersonAffiliationConnections(
-              personMap.get(multiAffilTab.getPersonBox().getValue()),
-              multiAffilTab.getChangedAndNewConnections()))
+                  personMap.get(multiAffilTab.getPersonBox().getValue()),
+                  multiAffilTab.getChangedAndNewConnections()))
             successfulCommit();
           else
             commitError("There has been an error.");
@@ -574,7 +574,7 @@ public class UserDBPortletUI extends QBiCPortletUI {
 
         String affiName = multiAffilTab.getOrganizationBox().getValue().toString();
         Person newP = new Person(p.getUsername(), p.getTitle(), p.getFirstName(), p.getLastName(),
-            p.getEmail(), p.getPhone(), affiMap.get(affiName), affiName, "");
+                p.getEmail(), p.getPhone(), affiMap.get(affiName), affiName, "");
         multiAffilTab.addDataToTable(new ArrayList<Person>(Arrays.asList(newP)));
         multiAffilTab.getAddButton().setEnabled(false);
       }
@@ -587,7 +587,7 @@ public class UserDBPortletUI extends QBiCPortletUI {
         if (multiAffilTab.getPersonBox().getValue() != null) {
           String personName = multiAffilTab.getPersonBox().getValue().toString();
           multiAffilTab.reactToPersonSelection(personName,
-              dbControl.getPersonWithAffiliations(personMap.get(personName)));
+                  dbControl.getPersonWithAffiliations(personMap.get(personName)));
           multiAffilTab.getAddButton().setEnabled(multiAffilTab.newAffiliationPossible());
         }
       }
@@ -608,7 +608,7 @@ public class UserDBPortletUI extends QBiCPortletUI {
 
   private void successfulCommit() {
     Styles.notification("Data added", "Data has been successfully added to the database!",
-        NotificationType.SUCCESS);
+            NotificationType.SUCCESS);
     // wait a bit and reload tabs
     try {
       Thread.sleep(1000);
@@ -621,20 +621,10 @@ public class UserDBPortletUI extends QBiCPortletUI {
 
   private void inputError() {
     Styles.notification("Data Incomplete", "Please fill in all required fields correctly.",
-        NotificationType.DEFAULT);
+            NotificationType.DEFAULT);
   }
 
   private void commitError(String reason) {
     Styles.notification("There has been an error.", reason, NotificationType.ERROR);
   }
-  //
-  // private String getPortletContextName(VaadinRequest request) {
-  // WrappedPortletSession wrappedPortletSession =
-  // (WrappedPortletSession) request.getWrappedSession();
-  // PortletSession portletSession = wrappedPortletSession.getPortletSession();
-  //
-  // final PortletContext context = portletSession.getPortletContext();
-  // final String portletContextName = context.getPortletContextName();
-  // return portletContextName;
-  // }
 }

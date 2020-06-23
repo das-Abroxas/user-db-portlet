@@ -15,34 +15,14 @@
  *******************************************************************************/
 package life.qbic.userdb.views;
 
-import java.io.ByteArrayInputStream;
-import java.io.FileNotFoundException;
-import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.tepi.filtertable.FilterTable;
 import com.vaadin.data.Property.ValueChangeEvent;
 import com.vaadin.data.Property.ValueChangeListener;
 import com.vaadin.server.FileDownloader;
 import com.vaadin.server.StreamResource;
 import com.vaadin.shared.ui.combobox.FilteringMode;
-import com.vaadin.ui.Button;
-import com.vaadin.ui.CheckBox;
-import com.vaadin.ui.ComboBox;
-import com.vaadin.ui.Table;
-import com.vaadin.ui.TextField;
-import com.vaadin.ui.VerticalLayout;
+import com.vaadin.ui.*;
 import com.vaadin.ui.themes.ValoTheme;
-import ch.systemsx.cisd.common.concurrent.TimerUtilities;
-import life.qbic.datamodel.identifiers.SampleCodeFunctions;
+
 import life.qbic.datamodel.persons.Affiliation;
 import life.qbic.datamodel.persons.CollaboratorWithResponsibility;
 import life.qbic.datamodel.persons.Person;
@@ -50,8 +30,18 @@ import life.qbic.datamodel.projects.ProjectInfo;
 import life.qbic.portal.Styles;
 import life.qbic.portal.portlet.ProjectFilterDecorator;
 import life.qbic.portal.portlet.ProjectFilterGenerator;
-import life.qbic.portal.utils.PortalUtils;
 import life.qbic.utils.TimeUtils;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.tepi.filtertable.FilterTable;
+
+import java.io.ByteArrayInputStream;
+import java.io.FileNotFoundException;
+import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
+import java.util.*;
 
 public class ProjectView extends VerticalLayout {
   Logger logger = LogManager.getLogger(ProjectView.class);
@@ -164,7 +154,7 @@ public class ProjectView extends VerticalLayout {
     projectInfoLayout.setSpacing(true);
     addComponent(projectInfoLayout);
   }
-  
+
   public void initProjectTable(boolean showIncompleteOnly) {
     projectTable.removeAllItems();
     for (String code : projectMap.keySet()) {
@@ -181,9 +171,9 @@ public class ProjectView extends VerticalLayout {
       row.add(p.getSpace());
       row.add(inv);
       row.add(mang);
-      
+
       boolean complete = StringUtils.isNotBlank(secName) && StringUtils.isNotBlank(inv)
-          && StringUtils.isNotBlank(mang) && StringUtils.isNotBlank(cont);
+              && StringUtils.isNotBlank(mang) && StringUtils.isNotBlank(cont);
 
       if (showIncompleteOnly) {
         if (!complete) {
@@ -207,24 +197,17 @@ public class ProjectView extends VerticalLayout {
 
   /**
    * Creates a tab separated values file of the available project information
-   * 
-   * @param manager
-   * @param contact
+   *
+   * @param subProject
    * @param PI
-   * 
-   * @param managerName
-   * @param contactName
-   * @param invName
-   * @param space
-   * @param secondaryName
-   * @param string
-   * 
+   * @param contact
+   * @param manager
    * @return
    * @throws FileNotFoundException
    * @throws UnsupportedEncodingException
    */
   private String createProjectTSV(String subProject, Person PI, Person contact, Person manager)
-      throws FileNotFoundException, UnsupportedEncodingException {
+          throws FileNotFoundException, UnsupportedEncodingException {
 
     ProjectInfo proj = projectMap.get(subProject);
     String secondaryName = proj.getSecondaryName();
@@ -233,13 +216,13 @@ public class ProjectView extends VerticalLayout {
     String description = proj.getDescription();
 
     List<String> summaryHeader =
-        new ArrayList<>(Arrays.asList("Sub-Project", "Short Title", "Description", "Project",
-            "Principal Investigator", "PI E-Mail", "PI Group", "PI Institute", "PI Organization",
-            "PI Address", "Contact Person", "Contact E-Mail", "Contact Group", "Contact Institute",
-            "Contact Organization", "Contact Address", "Project Manager", "Manager E-Mail",
-            "Manager Group", "Manager Institute", "Manager Organization", "Manager Address"));
+            new ArrayList<>(Arrays.asList("Sub-Project", "Short Title", "Description", "Project",
+                    "Principal Investigator", "PI E-Mail", "PI Group", "PI Institute", "PI Organization",
+                    "PI Address", "Contact Person", "Contact E-Mail", "Contact Group", "Contact Institute",
+                    "Contact Organization", "Contact Address", "Project Manager", "Manager E-Mail",
+                    "Manager Group", "Manager Institute", "Manager Organization", "Manager Address"));
     List<String> data =
-        new ArrayList<>(Arrays.asList(subProject, secondaryName, description, space));
+            new ArrayList<>(Arrays.asList(subProject, secondaryName, description, space));
 
     addPersonInfos(data, PI);
     addPersonInfos(data, contact);
@@ -265,7 +248,7 @@ public class ProjectView extends VerticalLayout {
   private String createTSVForTable() throws FileNotFoundException, UnsupportedEncodingException {
 
     List<String> header = new ArrayList<>(Arrays.asList("Sub-Project", "Short Title", "Project",
-        "Principal Investigator", "Contact Person", "Project Manager"));
+            "Principal Investigator", "Contact Person", "Project Manager"));
     String headerLine = String.join("\t", header);
 
     StringBuilder builder = new StringBuilder(headerLine + "\n");
@@ -283,7 +266,7 @@ public class ProjectView extends VerticalLayout {
       String mang = proj.getManager();
       mang = mang == null ? "" : mang;
       String row = replaceSpecialSymbols(
-          String.join("\t", Arrays.asList(code, name, space, inv, cont, mang)));
+              String.join("\t", Arrays.asList(code, name, space, inv, cont, mang)));
       builder.append(row + "\n");
     }
     return builder.toString();
@@ -347,11 +330,11 @@ public class ProjectView extends VerticalLayout {
   }
 
   private void armSingleProjectDownloadButton(Object item, Person PI, Person contact,
-      Person manager) throws FileNotFoundException, UnsupportedEncodingException {
+                                              Person manager) throws FileNotFoundException, UnsupportedEncodingException {
     String ts = TimeUtils.getCurrentTimestampString();
     String subProject = item.toString();
     StreamResource tsvStream = getTSVStream(createProjectTSV(subProject, PI, contact, manager),
-        subProject + "_" + ts + "_summary");
+            subProject + "_" + ts + "_summary");
     if (tsvDL == null) {
       tsvDL = new FileDownloader(tsvStream);
       tsvDL.extend(downloadProjectInfo);
@@ -360,7 +343,7 @@ public class ProjectView extends VerticalLayout {
   }
 
   private void armProjectsDownloadButton()
-      throws FileNotFoundException, UnsupportedEncodingException {
+          throws FileNotFoundException, UnsupportedEncodingException {
     String ts = TimeUtils.getCurrentTimestampString();
     StreamResource tsvStream = getTSVStream(createTSVForTable(), ts + "projects_table");
     if (tableDL == null) {
@@ -372,7 +355,7 @@ public class ProjectView extends VerticalLayout {
 
   /**
    * returns null if there was no change
-   * 
+   *
    * @return
    */
   public ProjectInfo getEditedInfo() {
@@ -403,7 +386,7 @@ public class ProjectView extends VerticalLayout {
     if (update) {
       // initProjectInfos(projectMap.values());
       ProjectInfo newInfo =
-          new ProjectInfo(p.getSpace(), code, p.getDescription(), newName, p.getProjectID());
+              new ProjectInfo(p.getSpace(), code, p.getDescription(), newName, p.getProjectID());
       if (newPI != null)
         newInfo.setInvestigator(newPI.toString());
       else
@@ -440,7 +423,7 @@ public class ProjectView extends VerticalLayout {
   }
 
   public void setCollaboratorsOfProject(List<CollaboratorWithResponsibility> collaborators) {
-    experimentMap = new HashMap<String, CollaboratorWithResponsibility>();
+    experimentMap = new HashMap<>();
     experimentPersons.removeAllItems();
     experimentPersons.setVisible(false);
 
@@ -470,21 +453,20 @@ public class ProjectView extends VerticalLayout {
   }
 
   /**
-   * 
+   *
    * @return list of new collaborators for experiments
    */
   public List<CollaboratorWithResponsibility> getNewResponsibilities() {
-    List<CollaboratorWithResponsibility> res = new ArrayList<CollaboratorWithResponsibility>();
-    logger.debug("ids: " + experimentPersons.getItemIds());
+    List<CollaboratorWithResponsibility> res = new ArrayList<>();
     for (Object code : experimentPersons.getItemIds()) {
       ComboBox personBox =
-          (ComboBox) experimentPersons.getItem(code).getItemProperty("Name").getValue();
+              (ComboBox) experimentPersons.getItem(code).getItemProperty("Name").getValue();
       String name = "";
       if (personBox.getValue() != null)
         name = personBox.getValue().toString();
       CollaboratorWithResponsibility old = experimentMap.get(code);
       CollaboratorWithResponsibility newColl = new CollaboratorWithResponsibility(
-          old.getExperimentID(), name, old.getOpenbisIdentifier(), code.toString(), old.getRole());
+              old.getExperimentID(), name, old.getOpenbisIdentifier(), code.toString(), old.getRole());
       res.add(newColl);
     }
     return res;
@@ -492,17 +474,8 @@ public class ProjectView extends VerticalLayout {
 
   public void updateChangedInfo(ProjectInfo info) {
     String code = info.getProjectCode();
-    // projectTable.removeItem(code);
     projectMap.put(code, info);
     initProjectTable(showIncomplete.getValue());
-    // List<Object> row = new ArrayList<Object>();
-    // row.add(code);
-    // row.add(info.getSecondaryName());
-    // row.add(info.getSpace());
-    // row.add(info.getInvestigator());
-    // projectTable.addItem(row.toArray(new Object[row.size()]), code);
-    // sort ascending by Project ID
-    // projectTable.sort(new Object[] {"Sub-Project"}, new boolean[] {true});
   }
 
   public void handleProjectDeselect() {
@@ -537,5 +510,4 @@ public class ProjectView extends VerticalLayout {
       projectInfoLayout.setVisible(true);
     }
   }
-
 }

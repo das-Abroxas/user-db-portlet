@@ -15,9 +15,6 @@
  *******************************************************************************/
 package life.qbic.userdb.views;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import com.vaadin.data.Property.ValueChangeEvent;
 import com.vaadin.data.Property.ValueChangeListener;
 import com.vaadin.data.Validator;
@@ -26,44 +23,37 @@ import com.vaadin.data.validator.CompositeValidator.CombinationMode;
 import com.vaadin.data.validator.RegexpValidator;
 import com.vaadin.data.validator.StringLengthValidator;
 import com.vaadin.shared.ui.combobox.FilteringMode;
-import com.vaadin.ui.Button;
-import com.vaadin.ui.CheckBox;
-import com.vaadin.ui.ComboBox;
-import com.vaadin.ui.FormLayout;
-import com.vaadin.ui.HorizontalLayout;
-import com.vaadin.ui.TextField;
+import com.vaadin.ui.*;
 import com.vaadin.ui.themes.ValoTheme;
-import ch.systemsx.cisd.common.collection.RegExValidator;
+
 import life.qbic.datamodel.persons.Affiliation;
 import life.qbic.datamodel.persons.Person;
 import life.qbic.portal.Styles;
-import life.qbic.userdb.helpers.EmailFreeValidator;
 import life.qbic.userdb.helpers.RegExHelper;
 
+import java.util.List;
+import java.util.Map;
+
+/**
+ *
+ */
 public class PersonInput extends HorizontalLayout {
 
-  /**
-   * 
-   */
   private static final long serialVersionUID = 2657654653139639151L;
   private FormLayout left;
 
   private Button commit;
   private TextField userName;
   private ComboBox title;
-  private TextField first;
-  private TextField last;
-  private TextField eMail;
-  private TextField phone;
-  private ComboBox affiliation;
+  private TextField first, last, eMail, phone;
+  private ComboBox affiliation, role;
   private CheckBox newAffiliation;
   private AffiliationInput affiInput;
-  private ComboBox role;
 
   private Map<String, Integer> affiliationMap;
 
   public PersonInput(List<String> titles, Map<String, Integer> affiliations, List<String> roles,
-      Map<String, Integer> colNamesToMaxLength, AffiliationInput affiInput) {
+                     Map<String, Integer> colNamesToMaxLength, AffiliationInput affiInput) {
     left = new FormLayout();
     left.setMargin(true);
 
@@ -75,12 +65,12 @@ public class PersonInput extends HorizontalLayout {
     userName = new TextField("Username");
     // userName.setRequired(true);
     userName.addValidator(
-        new RegexpValidator(RegExHelper.VALID_USERNAME_REGEX, "Please input a valid username."));
+            new RegexpValidator(RegExHelper.VALID_USERNAME_REGEX, "Please input a valid username."));
     left.addComponent(Styles.questionize(userName,
-        "University Tübingen user name or user name provided by QBiC. If left empty a dummy user name is chosen "
-            + "which cannot be used to log in until a real name is added. Person information can still be added to "
-            + "projects or experiments in that case.",
-        "User Name"));
+            "University Tübingen user name or user name provided by QBiC. If left empty a dummy user name is chosen "
+                    + "which cannot be used to log in until a real name is added. Person information can still be added to "
+                    + "projects or experiments in that case.",
+            "User Name"));
 
     title = new ComboBox("Title", titles);
     title.setRequired(true);
@@ -89,27 +79,27 @@ public class PersonInput extends HorizontalLayout {
     left.addComponent(title);
 
     Validator nameValidator =
-        new RegexpValidator(RegExHelper.VALID_NAME_REGEX, "Please input a valid name.");
+            new RegexpValidator(RegExHelper.VALID_NAME_REGEX, "Please input a valid name.");
     first = prepSizeValidationForTextField("First Name", colNamesToMaxLength.get("first_name"),
-        nameValidator);
+            nameValidator);
     first.setRequired(true);
     left.addComponent(first);
 
     Validator nameValidator2 =
-        new RegexpValidator(RegExHelper.VALID_NAME_REGEX, "Please input a valid name.");
+            new RegexpValidator(RegExHelper.VALID_NAME_REGEX, "Please input a valid name.");
     last = prepSizeValidationForTextField("Last Name", colNamesToMaxLength.get("family_name"),
-        nameValidator2);
+            nameValidator2);
     last.setRequired(true);
     left.addComponent(last);
 
 //    CompositeValidator mailValidator = new CompositeValidator(CombinationMode.AND, "");
     RegexpValidator mailRegExVal = new RegexpValidator(RegExHelper.VALID_EMAIL_ADDRESS_REGEX,
-        "Please input a valid e-mail address.");
+            "Please input a valid e-mail address.");
 //    mailValidator.addValidator(mailRegExVal);
 //    mailValidator.addValidator(new EmailFreeValidator(existingEmails));
 
     eMail =
-        prepSizeValidationForTextField("E-Mail", colNamesToMaxLength.get("email"), mailRegExVal);
+            prepSizeValidationForTextField("E-Mail", colNamesToMaxLength.get("email"), mailRegExVal);
     eMail.setRequired(true);
     left.addComponent(eMail);
 
@@ -122,9 +112,9 @@ public class PersonInput extends HorizontalLayout {
     affiliation.setFilteringMode(FilteringMode.CONTAINS);
     affiliation.setStyleName(ValoTheme.COMBOBOX_SMALL);
     left.addComponent(Styles.questionize(affiliation,
-        "Work group or organization this person is part of. If it does not exist in the system "
-            + "a \"New Affiliation\" has to be created first. Additional Affiliations and roles can be set in the next Tab.",
-        "Affiliation"));
+            "Work group or organization this person is part of. If it does not exist in the system "
+                    + "a \"New Affiliation\" has to be created first. Additional Affiliations and roles can be set in the next Tab.",
+            "Affiliation"));
 
     newAffiliation = new CheckBox("New Affiliation");
     left.addComponent(newAffiliation);
@@ -160,8 +150,8 @@ public class PersonInput extends HorizontalLayout {
   public boolean isValid() {
     boolean affiliationValid = affiInput.isValid() || affiliation.isValid();
     return userName.isValid() && title.isValid() && first.isValid() && last.isValid()
-        && title.isValid() && eMail.isValid() && phone.isValid() && affiliationValid
-        && role.isValid();
+            && title.isValid() && eMail.isValid() && phone.isValid() && affiliationValid
+            && role.isValid();
   }
 
   public Button getCommitButton() {
@@ -180,7 +170,7 @@ public class PersonInput extends HorizontalLayout {
     if (affiliationMap.containsKey(affi))
       affiID = affiliationMap.get(affi);
     return new Person(userName.getValue(), ttl, first.getValue(), last.getValue(), eMail.getValue(),
-        phone.getValue(), affiID, affi, affRole);
+            phone.getValue(), affiID, affi, affRole);
   }
 
   public boolean hasNewAffiliation() {
@@ -200,7 +190,7 @@ public class PersonInput extends HorizontalLayout {
   private TextField prepSizeValidationForTextField(String name, int maxLength, Validator val) {
     TextField t = new TextField(name);
     StringLengthValidator lengthVal =
-        new StringLengthValidator(name + " needs to contain less than " + maxLength + " symbols.");
+            new StringLengthValidator(name + " needs to contain less than " + maxLength + " symbols.");
     lengthVal.setMaxLength(maxLength);
     if (val != null) {
       CompositeValidator composite = prepCompositeValidator(val);
